@@ -1,1 +1,1 @@
-# Lyft-Internship
+# Prime-VPN
