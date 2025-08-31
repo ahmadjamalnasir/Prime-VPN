@@ -167,8 +167,8 @@
 
 ### **1. Clone Repository**
 ```bash
-git clone https://github.com/yourusername/prime-vpn.git
-cd prime-vpn
+git clone https://github.com/ahmadjamalnasir/Prime-VPN.git
+cd Prime-VPN
 ```
 
 ### **2. Install Dependencies**
