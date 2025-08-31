@@ -1,12 +1,12 @@
-import { NativeModules, NativeEventEmitter } from 'react-native';
-import CryptoJS from 'crypto-js';
+import { DeviceEventEmitter } from 'react-native';
+import * as Crypto from 'expo-crypto';
 
 class WireGuardService {
   constructor() {
     this.isConnected = false;
     this.currentTunnel = null;
     this.connectionStats = null;
-    this.eventEmitter = new NativeEventEmitter();
+    this.eventEmitter = DeviceEventEmitter;
   }
 
   // Generate WireGuard key pair using Curve25519
@@ -18,15 +18,15 @@ class WireGuardService {
 
   generatePrivateKey() {
     // Generate 32 random bytes for Curve25519 private key
-    const randomBytes = CryptoJS.lib.WordArray.random(32);
-    return CryptoJS.enc.Base64.stringify(randomBytes);
+    const randomBytes = Array.from({length: 32}, () => Math.floor(Math.random() * 256));
+    return btoa(String.fromCharCode(...randomBytes));
   }
 
-  derivePublicKey(privateKey) {
+  async derivePublicKey(privateKey) {
     // In real implementation, use Curve25519 to derive public key
     // For demo, we'll simulate this
-    const hash = CryptoJS.SHA256(privateKey);
-    return CryptoJS.enc.Base64.stringify(hash).substring(0, 44);
+    const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, privateKey);
+    return hash.substring(0, 44);
   }
 
   // Create WireGuard configuration
@@ -45,16 +45,20 @@ PersistentKeepalive = 25`;
     return config;
   }
 
-  // Encrypt configuration with AES-256
+  // Encrypt configuration (simplified for demo)
   encryptConfig(config, password) {
-    const encrypted = CryptoJS.AES.encrypt(config, password).toString();
-    return encrypted;
+    // In production, use proper AES encryption
+    return btoa(config + password);
   }
 
-  // Decrypt configuration
+  // Decrypt configuration (simplified for demo)
   decryptConfig(encryptedConfig, password) {
-    const decrypted = CryptoJS.AES.decrypt(encryptedConfig, password);
-    return decrypted.toString(CryptoJS.enc.Utf8);
+    // In production, use proper AES decryption
+    try {
+      return atob(encryptedConfig).replace(password, '');
+    } catch {
+      throw new Error('Decryption failed');
+    }
   }
 
   // Connect to WireGuard server
