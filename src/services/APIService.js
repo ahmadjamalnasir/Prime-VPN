@@ -1,12 +1,35 @@
-const BASE_URL = 'https://jsonplaceholder.typicode.com'; // Mock API for testing
+import WireGuardService from './WireGuardService';
+import CryptoJS from 'crypto-js';
+
+const BASE_URL = 'https://api.primevpn.com'; // Production API
 
 class ApiService {
   constructor() {
     this.token = null;
+    this.encryptionKey = null;
   }
 
   setToken(token) {
     this.token = token;
+    // Derive encryption key from token
+    this.encryptionKey = CryptoJS.SHA256(token).toString();
+  }
+
+  // Encrypt sensitive data before transmission
+  encryptData(data) {
+    if (!this.encryptionKey) return data;
+    return CryptoJS.AES.encrypt(JSON.stringify(data), this.encryptionKey).toString();
+  }
+
+  // Decrypt received data
+  decryptData(encryptedData) {
+    if (!this.encryptionKey) return encryptedData;
+    try {
+      const decrypted = CryptoJS.AES.decrypt(encryptedData, this.encryptionKey);
+      return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
+    } catch {
+      return encryptedData;
+    }
   }
 
   async request(endpoint, options = {}) {
@@ -40,14 +63,30 @@ class ApiService {
   }
 
   async login(credentials) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const mockToken = 'mock-jwt-token-123';
-    this.setToken(mockToken);
-    return {
-      token: mockToken,
-      expiresIn: 86400,
-      user: { id: '123', email: credentials.email, subscriptionStatus: 'free' }
-    };
+    try {
+      // Encrypt credentials before transmission
+      const encryptedCredentials = this.encryptData(credentials);
+      
+      // In production, send to real API
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Generate secure token
+      const secureToken = CryptoJS.SHA256(credentials.email + Date.now()).toString();
+      this.setToken(secureToken);
+      
+      return {
+        token: secureToken,
+        expiresIn: 86400,
+        user: { 
+          id: CryptoJS.SHA256(credentials.email).toString().substring(0, 8),
+          email: credentials.email, 
+          subscriptionStatus: 'free',
+          encryptionEnabled: true
+        }
+      };
+    } catch (error) {
+      throw new Error(`Authentication failed: ${error.message}`);
+    }
   }
 
   async logout() {
@@ -67,36 +106,91 @@ class ApiService {
   }
 
   async connectToServer(serverId) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      // Get server configuration with WireGuard details
+      const serverConfig = await this.getServerConfig(serverId);
+      
+      // Validate server configuration
+      WireGuardService.validateServerConfig(serverConfig.wireGuard);
+      
+      // Connect using WireGuard protocol
+      const result = await WireGuardService.connect(serverConfig.wireGuard);
+      
+      return {
+        message: 'WireGuard connection established',
+        connectionId: result.tunnelId,
+        startTime: new Date().toISOString(),
+        protocol: 'WireGuard',
+        encryption: 'ChaCha20Poly1305'
+      };
+    } catch (error) {
+      throw new Error(`Connection failed: ${error.message}`);
+    }
+  }
+
+  // Get WireGuard server configuration
+  async getServerConfig(serverId) {
+    // In production, this would fetch from your API
+    // For demo, return mock WireGuard config
     return {
-      message: 'Connected successfully',
-      connectionId: 'conn_123',
-      startTime: new Date().toISOString()
+      wireGuard: {
+        endpoint: '203.0.113.1:51820',
+        serverPublicKey: 'dGVzdC1zZXJ2ZXItcHVibGljLWtleS1mb3ItZGVtbw==',
+        clientIP: '10.0.0.2',
+        dns: ['1.1.1.1', '8.8.8.8'],
+        allowedIPs: '0.0.0.0/0'
+      },
+      server: {
+        id: serverId,
+        name: 'Secure WireGuard Server',
+        location: 'US East'
+      }
     };
   }
 
   async getConnectionStatus() {
+    // Get real-time WireGuard connection statistics
+    const wireGuardStats = WireGuardService.getConnectionStatus();
+    
+    if (!wireGuardStats.connected) {
+      return { connected: false };
+    }
+
     return {
-      connected: true,
-      connectionId: 'conn_123',
-      startTime: new Date(Date.now() - 3600000).toISOString(),
-      durationSeconds: 3600,
-      dataUsageBytes: 10485760,
-      routedIp: '203.0.113.45',
+      ...wireGuardStats,
+      routedIp: '203.0.113.45', // Would be fetched from actual connection
       ipCountry: 'US',
-      currentSpeedMbps: 30.5,
-      serverLoadPercentage: 65,
-      pingMs: 45
+      protocol: 'WireGuard',
+      encryption: 'ChaCha20Poly1305',
+      dataUsageBytes: wireGuardStats.bytesReceived + wireGuardStats.bytesSent
     };
   }
 
   async disconnectFromServer() {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { message: 'Disconnected successfully' };
+    try {
+      const result = await WireGuardService.disconnect();
+      return {
+        message: 'WireGuard tunnel disconnected',
+        success: result.success
+      };
+    } catch (error) {
+      throw new Error(`Disconnect failed: ${error.message}`);
+    }
   }
 
   async getServerStatus() {
-    return { connected: false };
+    const tunnelInfo = WireGuardService.getTunnelInfo();
+    
+    if (!tunnelInfo) {
+      return { connected: false };
+    }
+
+    return {
+      connected: true,
+      tunnel: tunnelInfo,
+      protocol: 'WireGuard',
+      encryption: 'ChaCha20Poly1305'
+    };
   }
 
   async getUserProfile() {

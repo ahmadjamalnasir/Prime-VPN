@@ -13,6 +13,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import RNPickerSelect from 'react-native-picker-select';
 import { useApp } from '../context/AppContext';
+import SecurityService from '../services/SecurityService';
+import WireGuardService from '../services/WireGuardService';
 
 const { width } = Dimensions.get('window');
 
@@ -207,8 +209,25 @@ const HomeScreen = ({ navigation }) => {
                 <Text style={styles.statValue}>{formatBytes(connectionStats.dataUsageBytes)}</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Server Load</Text>
-                <Text style={styles.statValue}>{connectionStats.serverLoadPercentage}%</Text>
+                <Text style={styles.statLabel}>Protocol</Text>
+                <Text style={styles.statValue}>{connectionStats.protocol || 'WireGuard'}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Security Status */}
+          {isConnected && (
+            <View style={styles.securityContainer}>
+              <View style={styles.securityHeader}>
+                <Text style={styles.securityTitle}>🔒 Security Status</Text>
+                <View style={styles.securityBadge}>
+                  <Text style={styles.securityBadgeText}>ENCRYPTED</Text>
+                </View>
+              </View>
+              <View style={styles.securityDetails}>
+                <Text style={styles.securityText}>Protocol: WireGuard</Text>
+                <Text style={styles.securityText}>Encryption: ChaCha20Poly1305</Text>
+                <Text style={styles.securityText}>Key Exchange: Curve25519</Text>
               </View>
             </View>
           )}
@@ -478,6 +497,44 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  securityContainer: {
+    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#00ff88',
+  },
+  securityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  securityTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#00ff88',
+  },
+  securityBadge: {
+    backgroundColor: '#00ff88',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  securityBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  securityDetails: {
+    gap: 5,
+  },
+  securityText: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.8,
   },
 });
 
