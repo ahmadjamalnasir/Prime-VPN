@@ -21,10 +21,10 @@ export const ENDPOINTS = {
     STATUS: '/users/{userId}/status',
     USAGE: '/users/{userId}/usage',
   },
-  SERVERS: {
-    LIST: '/servers',
-    CONNECT: '/servers/connect',
-    DISCONNECT: '/servers/disconnect',
-    STATUS: '/connection/status',
+  VPN: {
+    SERVERS: '/vpn/servers',
+    CONNECT: '/vpn/connect',
+    DISCONNECT: '/vpn/disconnect',
+    STATUS: '/vpn/status',
   },
 };

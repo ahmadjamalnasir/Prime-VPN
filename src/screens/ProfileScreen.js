@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,19 +7,48 @@ import {
   ScrollView,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useApp } from '../context/AppContext';
+import ApiService from '../services/ApiService';
 
 const ProfileScreen = ({ navigation }) => {
-  const [user] = useState({
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    avatar: null,
-    isPremium: false,
-    subscriptionType: 'Free',
-    subscriptionExpiry: null,
-  });
+  const { user: contextUser, logout } = useApp();
+  const [userProfile, setUserProfile] = useState(null);
+  const [userStatus, setUserStatus] = useState(null);
+  const [userUsage, setUserUsage] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      const [profile, status, usage] = await Promise.all([
+        ApiService.getUserProfile(),
+        contextUser?.user_id ? ApiService.getUserStatus(contextUser.user_id) : null,
+        contextUser?.user_id ? ApiService.getUserUsage(contextUser.user_id) : null,
+      ]);
+      setUserProfile(profile);
+      setUserStatus(status);
+      setUserUsage(usage);
+    } catch (error) {
+      console.error('Failed to fetch user data:', error);
+      Alert.alert('Error', 'Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const user = userProfile || contextUser || {
+    name: 'User',
+    email: 'user@example.com',
+    is_premium: false,
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -27,7 +56,10 @@ const ProfileScreen = ({ navigation }) => {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', onPress: () => navigation.replace('Login') }
+        { text: 'Logout', onPress: async () => {
+          await logout();
+          navigation.replace('Login');
+        }}
       ]
     );
   };
@@ -63,26 +95,55 @@ const ProfileScreen = ({ navigation }) => {
             <Text style={styles.title}>Profile</Text>
           </View>
 
-          {/* User Info Section */}
-          <View style={styles.userSection}>
-            <View style={styles.avatarContainer}>
-              {user.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {user.name.split(' ').map(n => n[0]).join('')}
-                  </Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#00ff88" />
+              <Text style={styles.loadingText}>Loading profile...</Text>
+            </View>
+          ) : (
+            <>
+              {/* User Info Section */}
+              <View style={styles.userSection}>
+                <View style={styles.avatarContainer}>
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarText}>
+                      {(user.name || 'U').split(' ').map(n => n[0]).join('')}
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.editAvatarButton}>
+                    <Text style={styles.editAvatarText}>📷</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <Text style={styles.userName}>{user.name || 'User'}</Text>
+                <Text style={styles.userEmail}>{user.email}</Text>
+                {user.phone && (
+                  <Text style={styles.userPhone}>{user.phone}</Text>
+                )}
+              </View>
+
+              {/* Usage Stats */}
+              {userUsage && (
+                <View style={styles.usageSection}>
+                  <Text style={styles.sectionTitle}>Usage Statistics</Text>
+                  <View style={styles.usageGrid}>
+                    <View style={styles.usageItem}>
+                      <Text style={styles.usageValue}>{(userUsage.total_data_mb / 1024).toFixed(1)}GB</Text>
+                      <Text style={styles.usageLabel}>Total Data</Text>
+                    </View>
+                    <View style={styles.usageItem}>
+                      <Text style={styles.usageValue}>{userUsage.total_connections}</Text>
+                      <Text style={styles.usageLabel}>Connections</Text>
+                    </View>
+                    <View style={styles.usageItem}>
+                      <Text style={styles.usageValue}>{(userUsage.current_month_data_mb / 1024).toFixed(1)}GB</Text>
+                      <Text style={styles.usageLabel}>This Month</Text>
+                    </View>
+                  </View>
                 </View>
               )}
-              <TouchableOpacity style={styles.editAvatarButton}>
-                <Text style={styles.editAvatarText}>📷</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.userName}>{user.name}</Text>
-            <Text style={styles.userEmail}>{user.email}</Text>
-          </View>
+            </>
+          )}
 
           {/* Subscription Status */}
           <View style={styles.subscriptionSection}>
@@ -91,13 +152,19 @@ const ProfileScreen = ({ navigation }) => {
                 <Text style={styles.subscriptionTitle}>Subscription Status</Text>
                 <View style={[
                   styles.statusBadge, 
-                  { backgroundColor: user.isPremium ? '#00ff88' : '#ffaa00' }
+                  { backgroundColor: user.is_premium ? '#00ff88' : '#ffaa00' }
                 ]}>
-                  <Text style={styles.statusText}>{user.subscriptionType}</Text>
+                  <Text style={styles.statusText}>{user.is_premium ? 'Premium' : 'Free'}</Text>
                 </View>
               </View>
               
-              {user.isPremium ? (
+              {userStatus && userStatus.days_remaining && (
+                <Text style={styles.daysRemaining}>
+                  {userStatus.days_remaining} days remaining
+                </Text>
+              )}
+              
+              {user.is_premium ? (
                 <View>
                   <Text style={styles.subscriptionDetails}>
                     Premium features active
@@ -267,6 +334,18 @@ const styles = StyleSheet.create({
   
   versionContainer: { alignItems: 'center' },
   versionText: { color: '#8a8a8a', fontSize: 12 },
+  
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 },
+  loadingText: { color: '#fff', marginTop: 10, fontSize: 16 },
+  userPhone: { fontSize: 14, color: '#8a8a8a', marginTop: 5 },
+  
+  usageSection: { marginBottom: 30 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 15 },
+  usageGrid: { flexDirection: 'row', justifyContent: 'space-around' },
+  usageItem: { alignItems: 'center' },
+  usageValue: { fontSize: 20, fontWeight: 'bold', color: '#00ff88' },
+  usageLabel: { fontSize: 12, color: '#8a8a8a', marginTop: 5 },
+  daysRemaining: { color: '#ffaa00', fontSize: 14, marginBottom: 10, fontWeight: 'bold' },
 });
 
 export default ProfileScreen;

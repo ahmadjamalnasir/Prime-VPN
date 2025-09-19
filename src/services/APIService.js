@@ -128,35 +128,43 @@ class ApiService {
     return { message: 'Logged out successfully' };
   }
 
-  // Mock Server APIs
-  async getServers() {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return {
-      servers: [
-        { id: 'server_1', name: 'New York Premium', country: 'US', city: 'New York', flag_icon: '🇺🇸', ping: 45, load: 65, is_premium: false, server_type: 'standard' },
-        { id: 'server_2', name: 'London Fast', country: 'UK', city: 'London', flag_icon: '🇬🇧', ping: 38, load: 78, is_premium: true, server_type: 'premium' }
-      ]
-    };
+  // VPN Server APIs
+  async getServers(filters = {}) {
+    const queryParams = new URLSearchParams();
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== undefined) {
+        queryParams.append(key, filters[key]);
+      }
+    });
+    
+    const endpoint = queryParams.toString() ? 
+      `${ENDPOINTS.VPN.SERVERS}?${queryParams.toString()}` : 
+      ENDPOINTS.VPN.SERVERS;
+    
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
   }
 
-  async connectToServer(serverId) {
+  async connectToServer(userId, connectionData) {
     try {
-      // Get server configuration with WireGuard details
-      const serverConfig = await this.getServerConfig(serverId);
+      const queryParams = new URLSearchParams({ user_id: userId });
+      const endpoint = `${ENDPOINTS.VPN.CONNECT}?${queryParams.toString()}`;
       
-      // Validate server configuration
-      WireGuardService.validateServerConfig(serverConfig.wireGuard);
+      const response = await this.request(endpoint, {
+        method: 'POST',
+        body: connectionData
+      });
       
-      // Connect using WireGuard protocol
-      const result = await WireGuardService.connect(serverConfig.wireGuard);
+      // If backend returns WireGuard config, establish tunnel
+      if (response.wireguard_config) {
+        WireGuardService.validateServerConfig(response.wireguard_config);
+        const result = await WireGuardService.connect(response.wireguard_config);
+        response.tunnelId = result.tunnelId;
+      }
       
-      return {
-        message: 'WireGuard connection established',
-        connectionId: result.tunnelId,
-        startTime: new Date().toISOString(),
-        protocol: 'WireGuard',
-        encryption: 'ChaCha20Poly1305'
-      };
+      return response;
     } catch (error) {
       throw new Error(`Connection failed: ${error.message}`);
     }
@@ -200,12 +208,38 @@ class ApiService {
     };
   }
 
-  async disconnectFromServer() {
+  async getVpnStatus(userId, connectionId = null) {
+    const queryParams = new URLSearchParams({ user_id: userId });
+    if (connectionId) {
+      queryParams.append('connection_id', connectionId);
+    }
+    
+    const endpoint = `${ENDPOINTS.VPN.STATUS}?${queryParams.toString()}`;
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
+  }
+
+  async disconnectFromServer(connectionId, userId, stats = {}) {
     try {
+      const queryParams = new URLSearchParams({
+        connection_id: connectionId,
+        user_id: userId,
+        ...stats
+      });
+      const endpoint = `${ENDPOINTS.VPN.DISCONNECT}?${queryParams.toString()}`;
+      
+      const response = await this.request(endpoint, {
+        method: 'POST'
+      });
+      
+      // Disconnect WireGuard tunnel
       const result = await WireGuardService.disconnect();
+      
       return {
-        message: 'WireGuard tunnel disconnected',
-        success: result.success
+        ...response,
+        tunnelDisconnected: result.success
       };
     } catch (error) {
       throw new Error(`Disconnect failed: ${error.message}`);

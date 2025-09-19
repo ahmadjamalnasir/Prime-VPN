@@ -61,19 +61,21 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const fetchServers = async () => {
+  const fetchServers = async (filters = {}) => {
     try {
-      const response = await ApiService.getServers();
-      dispatch({ type: 'SET_SERVERS', payload: response.servers });
+      const response = await ApiService.getServers(filters);
+      dispatch({ type: 'SET_SERVERS', payload: response.servers || response });
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
     }
   };
 
-  const connectToServer = async (serverId) => {
+  const connectToServer = async (serverId, location = null) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const response = await ApiService.connectToServer(serverId);
+      const userId = state.user?.id || state.user?.user_id;
+      const connectionData = serverId ? { server_id: serverId } : { location };
+      const response = await ApiService.connectToServer(userId, connectionData);
       dispatch({ type: 'SET_CONNECTION', payload: response });
       return response;
     } catch (error) {
@@ -86,8 +88,13 @@ export const AppProvider = ({ children }) => {
 
   const disconnectFromServer = async () => {
     try {
-      if (state.currentConnection?.connectionId) {
-        await ApiService.disconnectFromServer(state.currentConnection.connectionId);
+      if (state.currentConnection?.connection_id) {
+        const userId = state.user?.id || state.user?.user_id;
+        const stats = state.connectionStats ? {
+          bytes_sent: state.connectionStats.bytesSent || 0,
+          bytes_received: state.connectionStats.bytesReceived || 0
+        } : {};
+        await ApiService.disconnectFromServer(state.currentConnection.connection_id, userId, stats);
       }
       dispatch({ type: 'SET_CONNECTION', payload: null });
       dispatch({ type: 'SET_CONNECTION_STATS', payload: null });
@@ -105,6 +112,17 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const getVpnStatus = async (connectionId = null) => {
+    try {
+      const userId = state.user?.id || state.user?.user_id;
+      const status = await ApiService.getVpnStatus(userId, connectionId);
+      return status;
+    } catch (error) {
+      console.error('Failed to fetch VPN status:', error);
+      throw error;
+    }
+  };
+
   const value = {
     ...state,
     login,
@@ -113,6 +131,7 @@ export const AppProvider = ({ children }) => {
     connectToServer,
     disconnectFromServer,
     updateConnectionStats,
+    getVpnStatus,
     dispatch,
   };
 
