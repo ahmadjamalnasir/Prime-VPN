@@ -1,7 +1,8 @@
 import WireGuardService from './WireGuardService';
 import * as Crypto from 'expo-crypto';
+import { API_CONFIG, ENDPOINTS } from '../config/api';
 
-const BASE_URL = 'https://api.primevpn.com'; // Production API
+const BASE_URL = API_CONFIG.BASE_URL;
 
 class ApiService {
   constructor() {
@@ -56,34 +57,64 @@ class ApiService {
     return data;
   }
 
-  // Mock Auth APIs
+  // Real Auth APIs
   async register(userData) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return { userId: '123', email: userData.email, message: 'Registration successful' };
+    const response = await this.request(ENDPOINTS.AUTH.SIGNUP, {
+      method: 'POST',
+      body: {
+        name: userData.fullName,
+        email: userData.email,
+        password: userData.password,
+        phone: userData.phone,
+        country: userData.countryCode
+      }
+    });
+    return response;
+  }
+
+  async verifyEmail(email, otpCode) {
+    const response = await this.request(ENDPOINTS.AUTH.VERIFY_EMAIL, {
+      method: 'POST',
+      body: { email, otp_code: otpCode }
+    });
+    return response;
+  }
+
+  async forgotPassword(email) {
+    const response = await this.request(ENDPOINTS.AUTH.FORGOT_PASSWORD, {
+      method: 'POST',
+      body: { email }
+    });
+    return response;
+  }
+
+  async resetPassword(email, otpCode, newPassword) {
+    const response = await this.request(ENDPOINTS.AUTH.RESET_PASSWORD, {
+      method: 'POST',
+      body: { email, otp_code: otpCode, new_password: newPassword }
+    });
+    return response;
   }
 
   async login(credentials) {
     try {
-      // Encrypt credentials before transmission
-      const encryptedCredentials = this.encryptData(credentials);
+      const response = await this.request(ENDPOINTS.AUTH.LOGIN, {
+        method: 'POST',
+        body: {
+          email: credentials.email,
+          password: credentials.password
+        }
+      });
       
-      // In production, send to real API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Generate secure token
-      const secureToken = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256, 
-        credentials.email + Date.now()
-      );
-      await this.setToken(secureToken);
+      // Set token for future requests
+      await this.setToken(response.access_token);
       
       return {
-        token: secureToken,
-        expiresIn: 86400,
-        user: { 
-          id: (await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, credentials.email)).substring(0, 8),
-          email: credentials.email, 
-          subscriptionStatus: 'free',
+        token: response.access_token,
+        user: {
+          id: response.user_id,
+          email: credentials.email,
+          subscriptionStatus: response.is_premium ? 'premium' : 'free',
           encryptionEnabled: true
         }
       };
@@ -197,14 +228,26 @@ class ApiService {
   }
 
   async getUserProfile() {
-    return {
-      id: '123',
-      email: 'user@example.com',
-      phone: '1234567890',
-      country: 'US',
-      subscriptionStatus: 'free',
-      subscriptionExpiry: null
-    };
+    const response = await this.request(ENDPOINTS.USER.PROFILE, {
+      method: 'GET'
+    });
+    return response;
+  }
+
+  async getUserStatus(userId) {
+    const endpoint = ENDPOINTS.USER.STATUS.replace('{userId}', userId);
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
+  }
+
+  async getUserUsage(userId) {
+    const endpoint = ENDPOINTS.USER.USAGE.replace('{userId}', userId);
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
   }
 
   async upgradeSubscription(plan, paymentMethodToken) {
