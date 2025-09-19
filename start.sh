@@ -13,9 +13,24 @@ echo "🔧 Setting up virtual environment..."
 export NODE_ENV=development
 export EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
 
-# Fix macOS file limit issue (EMFILE error)
-echo "🔧 Fixing macOS file limits..."
-ulimit -n 65536 2>/dev/null || echo "⚠️  Could not increase file limit (run as admin if needed)"
+# Apply permanent file limit fix
+echo "🔧 Applying permanent file limit fix..."
+echo 'kern.maxfiles=65536' | sudo tee -a /etc/sysctl.conf >/dev/null 2>&1 || true
+echo 'kern.maxfilesperproc=65536' | sudo tee -a /etc/sysctl.conf >/dev/null 2>&1 || true
+ulimit -n 65536
+
+# Reset file watchers
+echo "🔧 Resetting file watchers..."
+if command -v watchman &> /dev/null; then
+  watchman watch-del-all >/dev/null 2>&1 || true
+  watchman shutdown-server >/dev/null 2>&1 || true
+fi
+
+# Clean all caches
+echo "🧹 Cleaning caches..."
+rm -rf node_modules/.cache >/dev/null 2>&1 || true
+rm -rf ~/.expo >/dev/null 2>&1 || true
+rm -rf /tmp/metro-* >/dev/null 2>&1 || true
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
@@ -35,21 +50,21 @@ echo "✅ Node.js version: $(node -v)"
 # Install Expo CLI globally if not installed
 if ! command -v expo &> /dev/null; then
     echo "📦 Installing Expo CLI globally..."
-    npm install -g @expo/cli
+    npm install -g @expo/cli --force
 fi
 
-echo "✅ Expo CLI version: $(expo --version)"
+# Verify Expo CLI installation
+if command -v expo &> /dev/null; then
+    echo "✅ Expo CLI version: $(expo --version)"
+else
+    echo "⚠️  Expo CLI not found, using npx..."
+fi
 
 # Install project dependencies
 echo "📦 Installing project dependencies..."
 npm install
 
-# Clear any existing cache
-echo "🧹 Clearing Expo cache..."
-npx expo start --clear --non-interactive &
-EXPO_PID=$!
-sleep 3
-kill $EXPO_PID 2>/dev/null || true
+
 
 # Get local IP address
 LOCAL_IP=$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1)
@@ -74,5 +89,9 @@ echo ""
 echo "🛑 Press Ctrl+C to stop the server"
 echo ""
 
-# Start Expo development server
-npx expo start
+# Start Expo development server with tunnel mode to avoid file watching issues
+if command -v expo &> /dev/null; then
+    expo start --tunnel
+else
+    npx expo start --tunnel
+fi

@@ -103,12 +103,15 @@ const ServerListScreen = ({ navigation }) => {
     }
 
     try {
-      await connectToServer(server.id);
+      await connectToServer(server.id, null, navigation);
       setSelectedServer(server);
       Alert.alert('Connected', `Connected to ${server.name}`);
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Connection Failed', error.message);
+      // Error handling is done in AppContext, including navigation to plans
+      if (!error.message.toLowerCase().includes('premium')) {
+        Alert.alert('Connection Failed', error.message);
+      }
     }
   };
 

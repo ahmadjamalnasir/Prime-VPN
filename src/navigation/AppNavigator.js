@@ -10,6 +10,9 @@ import LoginScreen from '../screens/LoginScreen';
 import RegistrationScreen from '../screens/RegistrationScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
+import SubscriptionPlansScreen from '../screens/SubscriptionPlansScreen';
+import SubscriptionManagementScreen from '../screens/SubscriptionManagementScreen';
+import PaymentProcessingScreen from '../screens/PaymentProcessingScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ServerListScreen from '../screens/ServerListScreen';
 import PaymentScreen from '../screens/PaymentScreen';
@@ -134,6 +137,21 @@ const AppNavigator = () => {
         name="Payment" 
         component={PaymentScreen} 
         options={{ title: 'Upgrade to Premium' }}
+      />
+      <Stack.Screen 
+        name="SubscriptionPlans" 
+        component={SubscriptionPlansScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="SubscriptionManagement" 
+        component={SubscriptionManagementScreen} 
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="PaymentProcessing" 
+        component={PaymentProcessingScreen} 
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

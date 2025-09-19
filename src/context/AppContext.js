@@ -70,7 +70,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const connectToServer = async (serverId, location = null) => {
+  const connectToServer = async (serverId, location = null, navigation = null) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       const userId = state.user?.id || state.user?.user_id;
@@ -80,6 +80,16 @@ export const AppProvider = ({ children }) => {
       return response;
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: error.message });
+      
+      // Check if error is related to premium access
+      if (error.message.toLowerCase().includes('premium') || 
+          error.message.toLowerCase().includes('upgrade') ||
+          error.message.toLowerCase().includes('subscription')) {
+        if (navigation) {
+          navigation.navigate('SubscriptionPlans', { fromError: true });
+        }
+      }
+      
       throw error;
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -123,6 +133,26 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const initiatePayment = async (planId, paymentMethod, amount) => {
+    try {
+      const response = await ApiService.initiatePayment(planId, paymentMethod, amount);
+      return response;
+    } catch (error) {
+      console.error('Payment initiation failed:', error);
+      throw error;
+    }
+  };
+
+  const checkPaymentStatus = async (paymentId) => {
+    try {
+      const response = await ApiService.getPaymentStatus(paymentId);
+      return response;
+    } catch (error) {
+      console.error('Payment status check failed:', error);
+      throw error;
+    }
+  };
+
   const value = {
     ...state,
     login,
@@ -132,6 +162,8 @@ export const AppProvider = ({ children }) => {
     disconnectFromServer,
     updateConnectionStats,
     getVpnStatus,
+    initiatePayment,
+    checkPaymentStatus,
     dispatch,
   };
 

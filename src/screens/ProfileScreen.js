@@ -69,7 +69,7 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const menuItems = [
-    { title: 'Subscription Management', icon: '💳', onPress: () => navigation.navigate('Subscription') },
+    { title: 'Subscription Management', icon: '💳', onPress: () => navigation.navigate('SubscriptionManagement') },
     { title: 'Account Settings', icon: '⚙️', onPress: () => Alert.alert('Settings', 'Account settings coming soon') },
     { title: 'Privacy Policy', icon: '🔒', onPress: () => Alert.alert('Privacy', 'Privacy policy coming soon') },
     { title: 'Terms of Service', icon: '📄', onPress: () => Alert.alert('Terms', 'Terms of service coming soon') },
@@ -174,7 +174,7 @@ const ProfileScreen = ({ navigation }) => {
                   </Text>
                   <TouchableOpacity 
                     style={styles.manageButton}
-                    onPress={() => navigation.navigate('Subscription')}
+                    onPress={() => navigation.navigate('SubscriptionManagement')}
                   >
                     <Text style={styles.manageButtonText}>Manage Subscription</Text>
                   </TouchableOpacity>
@@ -186,13 +186,13 @@ const ProfileScreen = ({ navigation }) => {
                   </Text>
                   <TouchableOpacity 
                     style={styles.upgradeButton}
-                    onPress={handleUpgrade}
+                    onPress={() => navigation.navigate('SubscriptionPlans')}
                   >
                     <LinearGradient
                       colors={['#00ff88', '#00cc6a']}
                       style={styles.upgradeGradient}
                     >
-                      <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+                      <Text style={styles.upgradeButtonText}>View Plans</Text>
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>

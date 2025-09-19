@@ -27,4 +27,15 @@ export const ENDPOINTS = {
     DISCONNECT: '/vpn/disconnect',
     STATUS: '/vpn/status',
   },
+  SUBSCRIPTIONS: {
+    PLANS: '/subscriptions/plans',
+    USER_SUBSCRIPTION: '/subscriptions/users/{userId}',
+    CANCEL_SUBSCRIPTION: '/subscriptions/users/{userId}/cancel',
+    SUBSCRIPTION_HISTORY: '/subscriptions/users/{userId}/history',
+  },
+  PAYMENTS: {
+    INITIATE: '/payments/initiate',
+    STATUS: '/payments/{paymentId}',
+    CALLBACK: '/payments/callback',
+  },
 };

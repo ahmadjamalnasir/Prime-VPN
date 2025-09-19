@@ -284,6 +284,57 @@ class ApiService {
     return response;
   }
 
+  async getSubscriptionPlans() {
+    const response = await this.request(ENDPOINTS.SUBSCRIPTIONS.PLANS, {
+      method: 'GET'
+    });
+    return response;
+  }
+
+  async getUserSubscription(userId) {
+    const endpoint = ENDPOINTS.SUBSCRIPTIONS.USER_SUBSCRIPTION.replace('{userId}', userId);
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
+  }
+
+  async cancelSubscription(userId) {
+    const endpoint = ENDPOINTS.SUBSCRIPTIONS.CANCEL_SUBSCRIPTION.replace('{userId}', userId);
+    const response = await this.request(endpoint, {
+      method: 'PATCH'
+    });
+    return response;
+  }
+
+  async getSubscriptionHistory(userId) {
+    const endpoint = ENDPOINTS.SUBSCRIPTIONS.SUBSCRIPTION_HISTORY.replace('{userId}', userId);
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
+  }
+
+  async initiatePayment(planId, paymentMethod, amountUsd) {
+    const response = await this.request(ENDPOINTS.PAYMENTS.INITIATE, {
+      method: 'POST',
+      body: {
+        plan_id: planId,
+        payment_method: paymentMethod,
+        amount_usd: amountUsd
+      }
+    });
+    return response;
+  }
+
+  async getPaymentStatus(paymentId) {
+    const endpoint = ENDPOINTS.PAYMENTS.STATUS.replace('{paymentId}', paymentId);
+    const response = await this.request(endpoint, {
+      method: 'GET'
+    });
+    return response;
+  }
+
   async upgradeSubscription(plan, paymentMethodToken) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     return {
