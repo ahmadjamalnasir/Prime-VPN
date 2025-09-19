@@ -9,7 +9,8 @@ class VPNService {
     async connect(server) {
       try {
         this.connectionStatus = 'Connecting';
-        // Simulate VPN connection
+        // TODO: Implement actual VPN connection logic
+        // PLACEHOLDER: Simulated connection delay
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         this.isConnected = true;
@@ -26,7 +27,8 @@ class VPNService {
     async disconnect() {
       try {
         this.connectionStatus = 'Disconnecting';
-        // Simulate VPN disconnection
+        // TODO: Implement actual VPN disconnection logic
+        // PLACEHOLDER: Simulated disconnection delay
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         this.isConnected = false;

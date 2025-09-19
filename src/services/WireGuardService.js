@@ -29,12 +29,17 @@ class WireGuardService {
     return hash.substring(0, 44);
   }
 
-  // Create WireGuard configuration
+  // Create WireGuard configuration from server response
   createWireGuardConfig(serverConfig, clientKeys) {
+    // Use server-provided config directly
+    if (serverConfig.config) {
+      return serverConfig.config;
+    }
+    
+    // Build config only from API response data
     const config = `[Interface]
 PrivateKey = ${clientKeys.privateKey}
 Address = ${serverConfig.clientIP}/24
-DNS = 1.1.1.1, 8.8.8.8
 
 [Peer]
 PublicKey = ${serverConfig.serverPublicKey}
@@ -71,7 +76,8 @@ PersistentKeepalive = 25`;
       const config = this.createWireGuardConfig(serverConfig, clientKeys);
       
       // Encrypt configuration
-      const encryptedConfig = this.encryptConfig(config, 'user-password');
+      // TODO: Replace with user's actual password from secure storage
+      const encryptedConfig = this.encryptConfig(config, process.env.EXPO_PUBLIC_ENCRYPTION_KEY || '<USER_PASSWORD>');
       
       // Simulate WireGuard tunnel creation
       this.currentTunnel = {
@@ -179,21 +185,30 @@ PersistentKeepalive = 25`;
     };
   }
 
-  // Validate server configuration
+  // Validate server configuration from API response
   validateServerConfig(config) {
-    const required = ['endpoint', 'serverPublicKey', 'clientIP'];
+    // If full config string provided, validate it exists
+    if (config.config) {
+      if (!config.config.includes('[Interface]') || !config.config.includes('[Peer]')) {
+        throw new Error('Invalid WireGuard configuration format');
+      }
+      return true;
+    }
+
+    // Validate individual components
+    const required = ['endpoint', 'clientIP'];
     for (const field of required) {
       if (!config[field]) {
         throw new Error(`Missing required field: ${field}`);
       }
     }
 
-    // Validate public key format (Base64, 44 characters)
-    if (!/^[A-Za-z0-9+/]{43}=$/.test(config.serverPublicKey)) {
+    // Validate public key if provided
+    if (config.serverPublicKey && !/^[A-Za-z0-9+/]{43}=$/.test(config.serverPublicKey)) {
       throw new Error('Invalid server public key format');
     }
 
-    // Validate endpoint format (IP:port or domain:port)
+    // Validate endpoint format
     if (!/^[\w.-]+:\d+$/.test(config.endpoint)) {
       throw new Error('Invalid endpoint format');
     }
@@ -219,7 +234,7 @@ PersistentKeepalive = 25`;
   }
 
   // Export configuration for backup
-  exportConfig(password) {
+  exportConfig(password = null) {
     if (!this.currentTunnel) {
       throw new Error('No active tunnel to export');
     }
@@ -230,7 +245,9 @@ PersistentKeepalive = 25`;
       createdAt: new Date().toISOString()
     };
 
-    return this.encryptConfig(JSON.stringify(configData), password);
+    // TODO: Use secure password from user input or secure storage
+    const encryptionKey = password || process.env.EXPO_PUBLIC_ENCRYPTION_KEY || '<USER_PASSWORD>';
+    return this.encryptConfig(JSON.stringify(configData), encryptionKey);
   }
 
   // Import configuration from backup

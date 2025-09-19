@@ -33,8 +33,17 @@ class ApiService {
     }
   }
 
+  validateEndpoint(endpoint) {
+    // Validate endpoint starts with / and contains only safe characters
+    if (!endpoint.startsWith('/') || !/^[a-zA-Z0-9/_?&=-]+$/.test(endpoint)) {
+      throw new Error('Invalid endpoint format');
+    }
+    return endpoint;
+  }
+
   async request(endpoint, options = {}) {
-    const url = `${BASE_URL}${endpoint}`;
+    const validatedEndpoint = this.validateEndpoint(endpoint);
+    const url = `${BASE_URL}${validatedEndpoint}`;
     const config = {
       headers: {
         'Content-Type': 'application/json',
@@ -157,11 +166,13 @@ class ApiService {
         body: connectionData
       });
       
-      // If backend returns WireGuard config, establish tunnel
-      if (response.wireguard_config) {
-        WireGuardService.validateServerConfig(response.wireguard_config);
-        const result = await WireGuardService.connect(response.wireguard_config);
+          // Use WireGuard config directly from API response
+      if (response.wg_config) {
+        const serverConfig = this.parseWireGuardConfig(response);
+        WireGuardService.validateServerConfig(serverConfig.wireGuard);
+        const result = await WireGuardService.connect(serverConfig.wireGuard);
         response.tunnelId = result.tunnelId;
+        response.parsedConfig = serverConfig;
       }
       
       return response;
@@ -170,24 +181,33 @@ class ApiService {
     }
   }
 
-  // Get WireGuard server configuration
-  async getServerConfig(serverId) {
-    // In production, this would fetch from your API
-    // For demo, return mock WireGuard config
+  // Parse WireGuard config from API response only
+  parseWireGuardConfig(connectResponse) {
     return {
       wireGuard: {
-        endpoint: '203.0.113.1:51820',
-        serverPublicKey: 'dGVzdC1zZXJ2ZXItcHVibGljLWtleS1mb3ItZGVtbw==',
-        clientIP: '10.0.0.2',
-        dns: ['1.1.1.1', '8.8.8.8'],
-        allowedIPs: '0.0.0.0/0'
+        endpoint: connectResponse.server.endpoint,
+        serverPublicKey: this.extractPublicKeyFromConfig(connectResponse.wg_config),
+        clientIP: connectResponse.client_ip,
+        config: connectResponse.wg_config,
+        serverConfig: {
+          ipAddress: connectResponse.server.ip_address,
+          location: connectResponse.server.location
+        }
       },
       server: {
-        id: serverId,
-        name: 'Secure WireGuard Server',
-        location: 'US East'
-      }
+        id: connectResponse.server.id,
+        name: connectResponse.server.hostname,
+        location: connectResponse.server.location,
+        ipAddress: connectResponse.server.ip_address
+      },
+      connectionId: connectResponse.connection_id
     };
+  }
+
+  // Extract public key from WireGuard config string
+  extractPublicKeyFromConfig(wgConfig) {
+    const match = wgConfig.match(/PublicKey\s*=\s*([A-Za-z0-9+/=]+)/i);
+    return match ? match[1] : null;
   }
 
   async getConnectionStatus() {
@@ -198,12 +218,16 @@ class ApiService {
       return { connected: false };
     }
 
+    // Get connection data from stored server config
+    const tunnelInfo = WireGuardService.getTunnelInfo();
+    const serverConfig = tunnelInfo?.serverConfig || {};
+
     return {
       ...wireGuardStats,
-      routedIp: '203.0.113.45', // Would be fetched from actual connection
-      ipCountry: 'US',
-      protocol: 'WireGuard',
-      encryption: 'ChaCha20Poly1305',
+      routedIp: serverConfig.ipAddress || '<ROUTED_IP>',
+      ipCountry: serverConfig.location || '<IP_COUNTRY>',
+      protocol: process.env.EXPO_PUBLIC_VPN_PROTOCOL || 'WireGuard',
+      encryption: process.env.EXPO_PUBLIC_VPN_ENCRYPTION || 'ChaCha20Poly1305',
       dataUsageBytes: wireGuardStats.bytesReceived + wireGuardStats.bytesSent
     };
   }
@@ -256,8 +280,8 @@ class ApiService {
     return {
       connected: true,
       tunnel: tunnelInfo,
-      protocol: 'WireGuard',
-      encryption: 'ChaCha20Poly1305'
+      protocol: process.env.EXPO_PUBLIC_VPN_PROTOCOL || 'WireGuard',
+      encryption: process.env.EXPO_PUBLIC_VPN_ENCRYPTION || 'ChaCha20Poly1305'
     };
   }
 
@@ -336,19 +360,33 @@ class ApiService {
   }
 
   async upgradeSubscription(plan, paymentMethodToken) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    return {
-      message: 'Subscription upgraded successfully',
-      subscriptionStatus: 'premium',
-      expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-    };
+    const paymentResponse = await this.initiatePayment(plan.id, paymentMethodToken, plan.price);
+    
+    // Poll payment status until completion
+    let paymentStatus;
+    do {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      paymentStatus = await this.getPaymentStatus(paymentResponse.id);
+    } while (paymentStatus.status === 'pending');
+    
+    if (paymentStatus.status === 'success') {
+      return {
+        message: 'Subscription upgraded successfully',
+        subscriptionStatus: 'premium',
+        paymentId: paymentStatus.id,
+        transactionRef: paymentStatus.transaction_ref,
+        subscriptionId: paymentStatus.subscription_id
+      };
+    } else {
+      throw new Error('Payment failed');
+    }
   }
 
   async getAdConfig() {
     return {
-      adProvider: 'GoogleAdMob',
-      bannerAdUnitId: 'ca-app-pub-1234567890/banner123',
-      intervalSeconds: 120
+      adProvider: process.env.EXPO_PUBLIC_AD_PROVIDER || 'GoogleAdMob',
+      bannerAdUnitId: process.env.EXPO_PUBLIC_AD_UNIT_ID || '<AD_UNIT_ID>',
+      intervalSeconds: parseInt(process.env.EXPO_PUBLIC_AD_INTERVAL, 10) || 120
     };
   }
 }

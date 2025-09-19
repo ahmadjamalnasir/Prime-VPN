@@ -1,3 +1,4 @@
+// Import at top level to avoid lazy loading
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);

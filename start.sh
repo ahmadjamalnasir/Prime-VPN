@@ -1,96 +1,97 @@
 #!/bin/bash
 
-# Prime VPN - Setup and Run Script
-# This script creates a virtual environment and starts the application
+# Prime VPN - Complete Setup and Run Script
+# Creates virtual environment, validates dependencies, and starts application
 
-set -e  # Exit on any error
+set -e
 
-echo "🚀 Prime VPN - Setup and Run Script (Virtual Environment)"
-echo "======================================================"
+echo "🚀 Prime VPN - Complete Setup (Virtual Environment)"
+echo "================================================="
 
-# Create and activate virtual environment for Node.js dependencies
-echo "🔧 Setting up virtual environment..."
+# Create Node.js virtual environment using nvm-like approach
+echo "🔧 Setting up Node.js virtual environment..."
 export NODE_ENV=development
 export EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+export PATH="./node_modules/.bin:$PATH"
 
-# Apply permanent file limit fix
-echo "🔧 Applying permanent file limit fix..."
+# Apply file limit fixes
+echo "🔧 Applying file limit fixes..."
+ulimit -n 65536
 echo 'kern.maxfiles=65536' | sudo tee -a /etc/sysctl.conf >/dev/null 2>&1 || true
 echo 'kern.maxfilesperproc=65536' | sudo tee -a /etc/sysctl.conf >/dev/null 2>&1 || true
-ulimit -n 65536
 
-# Reset file watchers
-echo "🔧 Resetting file watchers..."
+# Reset file watchers and clean caches
+echo "🧹 Cleaning environment..."
 if command -v watchman &> /dev/null; then
   watchman watch-del-all >/dev/null 2>&1 || true
   watchman shutdown-server >/dev/null 2>&1 || true
 fi
+rm -rf node_modules/.cache ~/.expo /tmp/metro-* >/dev/null 2>&1 || true
 
-# Clean all caches
-echo "🧹 Cleaning caches..."
-rm -rf node_modules/.cache >/dev/null 2>&1 || true
-rm -rf ~/.expo >/dev/null 2>&1 || true
-rm -rf /tmp/metro-* >/dev/null 2>&1 || true
-
-# Check if Node.js is installed
+# Validate Node.js
 if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed. Please install Node.js 16+ first."
+    echo "❌ Node.js not found. Install Node.js 16+ first."
     exit 1
 fi
 
-# Check Node.js version
 NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
 if [ "$NODE_VERSION" -lt 16 ]; then
-    echo "❌ Node.js version 16+ required. Current version: $(node -v)"
+    echo "❌ Node.js 16+ required. Current: $(node -v)"
     exit 1
 fi
+echo "✅ Node.js: $(node -v)"
 
-echo "✅ Node.js version: $(node -v)"
-
-# Install Expo CLI globally if not installed
-if ! command -v expo &> /dev/null; then
-    echo "📦 Installing Expo CLI globally..."
-    npm install -g @expo/cli --force
+# Setup environment variables
+echo "🔧 Setting up environment..."
+if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+    echo "⚠️  Copying .env.example to .env - REPLACE PLACEHOLDERS!"
+    cp .env.example .env
 fi
 
-# Verify Expo CLI installation
-if command -v expo &> /dev/null; then
-    echo "✅ Expo CLI version: $(expo --version)"
-else
-    echo "⚠️  Expo CLI not found, using npx..."
-fi
-
-# Install project dependencies
-echo "📦 Installing project dependencies..."
+# Install dependencies in virtual environment
+echo "📦 Installing dependencies in virtual environment..."
 npm install
 
+# Install Expo CLI locally if not available
+if ! command -v expo &> /dev/null && ! [ -f "node_modules/.bin/expo" ]; then
+    echo "📦 Installing Expo CLI locally..."
+    npm install @expo/cli
+fi
 
+# Validate critical dependencies
+echo "🔍 Validating dependencies..."
+node -e "require('react-native'); require('expo'); console.log('✅ Core dependencies validated');"
 
-# Get local IP address
-LOCAL_IP=$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1)
+# Security audit
+echo "🔒 Running security audit..."
+npm audit --audit-level=high || echo "⚠️  Security vulnerabilities found - run 'npm audit fix'"
 
-# Start the application
-echo "🚀 Starting Prime VPN application in virtual environment..."
+# Get local IP with error handling
+LOCAL_IP=$(ifconfig 2>/dev/null | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1)
+if [ -z "$LOCAL_IP" ]; then
+    LOCAL_IP="localhost"
+    echo "⚠️  Could not detect local IP, using localhost"
+fi
+
 echo ""
-echo "📱 Mobile Application URLs:"
-echo "   📱 Android: exp://${LOCAL_IP}:8081"
-echo "   📱 iOS: exp://${LOCAL_IP}:8081"
-echo "   🔧 Metro: http://localhost:8081"
+echo "🚀 Starting Prime VPN in virtual environment..."
+echo "📱 Test URLs:"
+echo "   📱 Mobile: exp://${LOCAL_IP:-localhost}:8081"
+echo "   🌐 Web: http://localhost:8081"
 echo ""
-echo "📱 To test on your phone:"
-echo "   1. Install 'Expo Go' app from App Store/Play Store"
-echo "   2. Scan the QR code below with your phone camera"
-echo "   3. App will load automatically"
-echo ""
-echo "💻 To test on simulator:"
+echo "📱 Testing Options:"
+echo "   - Scan QR with Expo Go app"
 echo "   - Press 'i' for iOS simulator"
 echo "   - Press 'a' for Android emulator"
+echo "   - Press 'w' for web browser"
 echo ""
-echo "🛑 Press Ctrl+C to stop the server"
+echo "🛑 Press Ctrl+C to stop"
 echo ""
 
-# Start Expo development server with tunnel mode to avoid file watching issues
-if command -v expo &> /dev/null; then
+# Start application using local Expo CLI
+if [ -f "node_modules/.bin/expo" ]; then
+    ./node_modules/.bin/expo start --tunnel
+elif command -v expo &> /dev/null; then
     expo start --tunnel
 else
     npx expo start --tunnel
