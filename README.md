@@ -2,8 +2,8 @@
 
 **A complete, production-ready VPN application with full backend API integration**
 
-[![React Native](https://img.shields.io/badge/React%20Native-0.72.6-blue.svg)](https://reactnative.dev/)
-[![Expo](https://img.shields.io/badge/Expo-49.0.0-black.svg)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.79.5-blue.svg)](https://reactnative.dev/)
+[![Expo](https://img.shields.io/badge/Expo-54.0.0-black.svg)](https://expo.dev/)
 [![WireGuard](https://img.shields.io/badge/WireGuard-Protocol-green.svg)](https://www.wireguard.com/)
 [![Backend](https://img.shields.io/badge/Backend-Integrated-success.svg)](#api-integration)
 [![Security](https://img.shields.io/badge/Security-Military%20Grade-red.svg)](#security)
@@ -181,11 +181,11 @@ src/
 
 ### **Quick Start Options**
 
-#### **Option 1: Complete Virtual Environment (Recommended)**
+#### **Option 1: Complete Local Environment (Recommended)**
 ```bash
 ./start.sh
 ```
-- ✅ Creates Node.js virtual environment
+- ✅ Uses local Node.js environment
 - ✅ Validates all dependencies and imports
 - ✅ Fixes file limits and caches permanently
 - ✅ Security audit and environment setup
@@ -207,15 +207,15 @@ src/
 - ✅ No mobile dependencies required
 - ✅ Quick development cycle
 
-### **Virtual Environment Setup**
-The `start.sh` script creates a complete virtual environment:
+### **Local Environment Setup**
+The `start.sh` script uses your local environment:
 
 ```bash
-# Complete virtual environment setup
+# Complete local environment setup
 ./start.sh
 
 # What it does automatically:
-# 1. Creates Node.js virtual environment (PATH isolation)
+# 1. Uses local Node.js environment
 # 2. Validates Node.js 16+ and core dependencies
 # 3. Fixes macOS file limits permanently
 # 4. Cleans all caches and resets file watchers
@@ -227,24 +227,21 @@ The `start.sh` script creates a complete virtual environment:
 
 ### **Manual Setup (Alternative)**
 ```bash
-# 1. Create virtual environment
-export PATH="./node_modules/.bin:$PATH"
-
-# 2. Setup environment
+# 1. Setup environment
 cp .env.example .env
 # Edit .env with actual values
 
-# 3. Install dependencies
+# 2. Install dependencies
 npm install
 
-# 4. Validate imports
-node -e "require('react-native'); require('expo'); console.log('✅ Dependencies OK');"
+# 3. Install Expo CLI globally
+npm install -g @expo/cli
 
-# 5. Fix file limits (macOS)
+# 4. Fix file limits (macOS)
 ulimit -n 65536
 
-# 6. Start application
-npx expo start --tunnel
+# 5. Start application
+expo start --tunnel
 ```
 
 ### **Testing Methods**
@@ -262,8 +259,8 @@ The app expects a backend server. Either:
 ## 🛠️ Technology Stack
 
 ### **Core Technologies**
-- **React Native 0.72.6** - Cross-platform mobile development
-- **Expo 49.0.0** - Development platform and tools
+- **React Native 0.79.5** - Cross-platform mobile development
+- **Expo 54.0.0** - Development platform and tools
 - **React Navigation 6.x** - Navigation library
 - **Context API** - State management
 
@@ -383,6 +380,13 @@ cp .env.example .env
 ```bash
 # Fix vulnerable dependencies
 npm audit fix --force
+
+# Update Metro bundler and deprecated packages (v9+ only)
+npm install metro@^0.81.0 metro-resolver@^0.81.0 metro-runtime@^0.81.0
+npm install glob@^11.0.0 @xmldom/xmldom@^0.8.10 rimraf@^6.0.0
+
+# Remove deprecated versions
+npm uninstall glob@7.* glob@8.* rimraf@3.* rimraf@2.* 2>/dev/null || true
 
 # Update specific packages
 npm update semver ip execa send

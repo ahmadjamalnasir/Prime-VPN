@@ -3,15 +3,11 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// Disable file watching to prevent EMFILE errors
-config.watchFolders = [];
+// Configure for latest Metro version
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
+config.resolver.assetExts.push('bin');
 
-// Reduce file watching
-config.watchman = false;
-config.resetCache = true;
-
-// Optimize bundle size
+// Optimize for performance
 config.transformer.minifierConfig = {
   mangle: {
     keep_fnames: true,
@@ -27,5 +23,9 @@ config.transformer.minifierConfig = {
   toplevel: false,
   warnings: false,
 };
+
+// Enable new Metro features
+config.transformer.unstable_allowRequireContext = true;
+config.resolver.unstable_enableSymlinks = false;
 
 module.exports = config;

@@ -5,11 +5,16 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "splash": {
       "backgroundColor": "#1a1a2e"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
@@ -17,6 +22,10 @@
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e"
       }
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "./plugin/withWireGuard"
+    ]
   }
 }

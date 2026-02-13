@@ -1,5 +1,7 @@
-import { DeviceEventEmitter } from 'react-native';
-import * as Crypto from 'expo-crypto';
+import RNSimpleWireguard from 'react-native-wireguard-vpn';
+import { DeviceEventEmitter, Platform } from 'react-native';
+import nacl from 'tweetnacl';
+import { encode, decode } from 'tweetnacl-util';
 
 class WireGuardService {
   constructor() {
@@ -9,102 +11,80 @@ class WireGuardService {
     this.eventEmitter = DeviceEventEmitter;
   }
 
-  // Generate WireGuard key pair using Curve25519
-  generateKeyPair() {
-    const privateKey = this.generatePrivateKey();
-    const publicKey = this.derivePublicKey(privateKey);
-    return { privateKey, publicKey };
-  }
-
-  generatePrivateKey() {
-    // Generate 32 random bytes for Curve25519 private key
-    const randomBytes = Array.from({length: 32}, () => Math.floor(Math.random() * 256));
-    return btoa(String.fromCharCode(...randomBytes));
-  }
-
-  async derivePublicKey(privateKey) {
-    // In real implementation, use Curve25519 to derive public key
-    // For demo, we'll simulate this
-    const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, privateKey);
-    return hash.substring(0, 44);
-  }
-
-  // Create WireGuard configuration from server response
-  createWireGuardConfig(serverConfig, clientKeys) {
-    // Use server-provided config directly
-    if (serverConfig.config) {
-      return serverConfig.config;
-    }
-    
-    // Build config only from API response data
-    const config = `[Interface]
-PrivateKey = ${clientKeys.privateKey}
-Address = ${serverConfig.clientIP}/24
-
-[Peer]
-PublicKey = ${serverConfig.serverPublicKey}
-Endpoint = ${serverConfig.endpoint}
-AllowedIPs = 0.0.0.0/0
-PersistentKeepalive = 25`;
-
-    return config;
-  }
-
-  // Encrypt configuration (simplified for demo)
-  encryptConfig(config, password) {
-    // In production, use proper AES encryption
-    return btoa(config + password);
-  }
-
-  // Decrypt configuration (simplified for demo)
-  decryptConfig(encryptedConfig, password) {
-    // In production, use proper AES decryption
+  // Initialize the native module
+  async initialize() {
     try {
-      return atob(encryptedConfig).replace(password, '');
-    } catch {
-      throw new Error('Decryption failed');
+      if (!RNSimpleWireguard) {
+        console.warn('WireGuard module not found');
+        return false;
+      }
+      // Initialize if the library requires it (based on index.ts inspection it has initialize method)
+      await RNSimpleWireguard.initialize();
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize WireGuard:', error);
+      return false;
     }
+  }
+
+  // Generate WireGuard key pair using TweetNaCl (Curve25519)
+  generateKeyPair() {
+    const keyPair = nacl.box.keyPair();
+    const publicKey = encode(keyPair.publicKey);
+    const privateKey = encode(keyPair.secretKey);
+    return { privateKey, publicKey };
   }
 
   // Connect to WireGuard server
   async connect(serverConfig) {
     try {
-      // Generate client keys
+      await this.initialize();
+
+      // Generate client keys if not provided
       const clientKeys = this.generateKeyPair();
-      
-      // Create WireGuard configuration
-      const config = this.createWireGuardConfig(serverConfig, clientKeys);
-      
-      // Encrypt configuration
-      // TODO: Replace with user's actual password from secure storage
-      const encryptedConfig = this.encryptConfig(config, process.env.EXPO_PUBLIC_ENCRYPTION_KEY || '<USER_PASSWORD>');
-      
-      // Simulate WireGuard tunnel creation
-      this.currentTunnel = {
-        id: `wg-${Date.now()}`,
-        config: encryptedConfig,
-        serverConfig,
-        clientKeys,
-        startTime: new Date().toISOString(),
-        status: 'connecting'
+
+      const config = {
+        privateKey: clientKeys.privateKey,
+        publicKey: clientKeys.publicKey, // Library might expect client public key for some reason, or we just log it
+        serverAddress: serverConfig.serverConfig.ipAddress,
+        serverPort: parseInt(serverConfig.serverConfig.port || '51820', 10),
+        allowedIPs: serverConfig.wireGuard.allowedIPs || ['0.0.0.0/0'],
+        dns: serverConfig.wireGuard.dns || ['8.8.8.8'],
+        mtu: 1280
       };
 
-      // Simulate connection process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      // Handle endpoint formatting if needed
+      if (serverConfig.wireGuard.endpoint) {
+        const [host, port] = serverConfig.wireGuard.endpoint.split(':');
+        config.serverAddress = host;
+        config.serverPort = parseInt(port, 10);
+      }
+
+      // Pass server public key
+      config.publicKey = serverConfig.wireGuard.serverPublicKey;
+
+      console.log('Connecting to WireGuard...', { ...config, privateKey: '***' });
+
+      await RNSimpleWireguard.connect(config);
+
       this.isConnected = true;
-      this.currentTunnel.status = 'connected';
-      
-      // Start monitoring connection
+      this.currentTunnel = {
+        id: `wg-${Date.now()}`,
+        clientKeys,
+        serverConfig,
+        startTime: new Date().toISOString(),
+        status: 'connected'
+      };
+
       this.startConnectionMonitoring();
-      
+
       return {
         success: true,
         tunnelId: this.currentTunnel.id,
         message: 'WireGuard tunnel established'
       };
-      
     } catch (error) {
+      console.error('WireGuard connection error:', error);
       throw new Error(`WireGuard connection failed: ${error.message}`);
     }
   }
@@ -112,35 +92,28 @@ PersistentKeepalive = 25`;
   // Disconnect WireGuard tunnel
   async disconnect() {
     try {
-      if (!this.isConnected || !this.currentTunnel) {
-        throw new Error('No active tunnel to disconnect');
-      }
+      await RNSimpleWireguard.disconnect();
 
-      // Stop monitoring
       this.stopConnectionMonitoring();
-      
-      // Simulate tunnel teardown
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       this.isConnected = false;
       this.currentTunnel = null;
       this.connectionStats = null;
-      
+
       return {
         success: true,
         message: 'WireGuard tunnel disconnected'
       };
-      
     } catch (error) {
+      console.error('WireGuard disconnect error:', error);
       throw new Error(`Disconnect failed: ${error.message}`);
     }
   }
 
   // Monitor connection statistics
   startConnectionMonitoring() {
-    this.monitoringInterval = setInterval(() => {
-      if (this.isConnected && this.currentTunnel) {
-        this.updateConnectionStats();
+    this.monitoringInterval = setInterval(async () => {
+      if (this.isConnected) {
+        await this.updateConnectionStats();
       }
     }, 5000);
   }
@@ -152,116 +125,64 @@ PersistentKeepalive = 25`;
     }
   }
 
-  updateConnectionStats() {
-    const startTime = new Date(this.currentTunnel.startTime);
-    const durationSeconds = Math.floor((Date.now() - startTime.getTime()) / 1000);
-    
-    this.connectionStats = {
-      connected: true,
-      tunnelId: this.currentTunnel.id,
-      startTime: this.currentTunnel.startTime,
-      durationSeconds,
-      bytesReceived: Math.floor(Math.random() * 100000000) + 1000000,
-      bytesSent: Math.floor(Math.random() * 50000000) + 500000,
-      currentSpeedMbps: Math.floor(Math.random() * 80) + 20,
-      serverLoadPercentage: Math.floor(Math.random() * 30) + 40,
-      pingMs: Math.floor(Math.random() * 20) + 25,
-      protocol: 'WireGuard',
-      encryption: 'ChaCha20Poly1305',
-      handshakeTime: new Date(Date.now() - Math.random() * 300000).toISOString()
-    };
+  async updateConnectionStats() {
+    try {
+      const status = await RNSimpleWireguard.getStatus();
+
+      if (status.tunnelState !== 'ACTIVE' && this.isConnected) {
+        // Handle unexpected disconnection
+        console.warn('VPN tunnel reported inactive');
+        // optionally force disconnect state
+      }
+
+      const durationSeconds = this.currentTunnel
+        ? Math.floor((Date.now() - new Date(this.currentTunnel.startTime).getTime()) / 1000)
+        : 0;
+
+      this.connectionStats = {
+        connected: status.isConnected,
+        tunnelState: status.tunnelState,
+        protocol: 'WireGuard',
+        encryption: 'ChaCha20Poly1305',
+        startTime: this.currentTunnel?.startTime,
+        // Calculated stats
+        durationSeconds,
+        // Placeholder stats (library doesn't provide them yet)
+        dataUsageBytes: 0,
+        bytesReceived: 0,
+        bytesSent: 0,
+        currentSpeedMbps: 0,
+        pingMs: 0
+      };
+    } catch (error) {
+      console.warn('Failed to get VPN status:', error);
+    }
   }
 
   // Get current connection status
   getConnectionStatus() {
-    if (!this.isConnected || !this.currentTunnel) {
-      return { connected: false };
-    }
+    return this.connectionStats || { connected: false };
+  }
 
-    return this.connectionStats || {
-      connected: true,
-      tunnelId: this.currentTunnel.id,
-      status: this.currentTunnel.status
+  // Get tunnel information
+  getTunnelInfo() {
+    if (!this.currentTunnel) return null;
+    return {
+      id: this.currentTunnel.id,
+      status: this.currentTunnel.status,
+      startTime: this.currentTunnel.startTime,
+      clientPublicKey: this.currentTunnel.clientKeys.publicKey,
+      serverEndpoint: this.currentTunnel.serverConfig.wireGuard.endpoint
     };
   }
 
   // Validate server configuration from API response
   validateServerConfig(config) {
-    // If full config string provided, validate it exists
-    if (config.config) {
-      if (!config.config.includes('[Interface]') || !config.config.includes('[Peer]')) {
-        throw new Error('Invalid WireGuard configuration format');
-      }
-      return true;
+    // Basic validation
+    if (!config || !config.endpoint || !config.serverPublicKey) {
+      throw new Error('Invalid WireGuard configuration');
     }
-
-    // Validate individual components
-    const required = ['endpoint', 'clientIP'];
-    for (const field of required) {
-      if (!config[field]) {
-        throw new Error(`Missing required field: ${field}`);
-      }
-    }
-
-    // Validate public key if provided
-    if (config.serverPublicKey && !/^[A-Za-z0-9+/]{43}=$/.test(config.serverPublicKey)) {
-      throw new Error('Invalid server public key format');
-    }
-
-    // Validate endpoint format
-    if (!/^[\w.-]+:\d+$/.test(config.endpoint)) {
-      throw new Error('Invalid endpoint format');
-    }
-
     return true;
-  }
-
-  // Get tunnel information
-  getTunnelInfo() {
-    if (!this.currentTunnel) {
-      return null;
-    }
-
-    return {
-      id: this.currentTunnel.id,
-      status: this.currentTunnel.status,
-      startTime: this.currentTunnel.startTime,
-      serverEndpoint: this.currentTunnel.serverConfig.endpoint,
-      clientPublicKey: this.currentTunnel.clientKeys.publicKey,
-      protocol: 'WireGuard',
-      encryption: 'ChaCha20Poly1305'
-    };
-  }
-
-  // Export configuration for backup
-  exportConfig(password = null) {
-    if (!this.currentTunnel) {
-      throw new Error('No active tunnel to export');
-    }
-
-    const configData = {
-      serverConfig: this.currentTunnel.serverConfig,
-      clientKeys: this.currentTunnel.clientKeys,
-      createdAt: new Date().toISOString()
-    };
-
-    // TODO: Use secure password from user input or secure storage
-    const encryptionKey = password || process.env.EXPO_PUBLIC_ENCRYPTION_KEY || '<USER_PASSWORD>';
-    return this.encryptConfig(JSON.stringify(configData), encryptionKey);
-  }
-
-  // Import configuration from backup
-  importConfig(encryptedData, password) {
-    try {
-      const decryptedData = this.decryptConfig(encryptedData, password);
-      const configData = JSON.parse(decryptedData);
-      
-      this.validateServerConfig(configData.serverConfig);
-      
-      return configData;
-    } catch (error) {
-      throw new Error(`Failed to import configuration: ${error.message}`);
-    }
   }
 }
 
